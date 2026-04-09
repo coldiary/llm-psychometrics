@@ -24,7 +24,7 @@ A CLI tool that evaluates AI language models against standardized psychometric t
 ## Installation
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/coldiary/llm-psychometrics.git
 cd llm-psychometrics
 npm install
 ```
