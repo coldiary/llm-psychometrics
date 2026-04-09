@@ -17,10 +17,16 @@ const TEST_LABELS: Record<TestId, string> = {
   mbti: "MBTI (OEJTS 1.2)",
 };
 
-function ScoreBar({ value, max, width = 20 }: { value: number; max: number; width?: number }) {
-  const filled = Math.round((value / max) * width);
-  const bar = "\u2588".repeat(filled) + "\u2591".repeat(width - filled);
-  return <Text>{bar}</Text>;
+function rep(char: string, count: number): string {
+  return char.repeat(Math.max(0, Math.round(count)));
+}
+
+function levelColor(level: string): string {
+  return level === "High" ? "green" : level === "Low" ? "red" : "yellow";
+}
+
+function bigFiveLevel(score: number): string {
+  return score >= 38 ? "High" : score >= 22 ? "Avg" : "Low";
 }
 
 function BigFiveReport({ result }: { result: EvaluationResult }) {
@@ -32,17 +38,26 @@ function BigFiveReport({ result }: { result: EvaluationResult }) {
     "Openness",
   ];
   return (
-    <Box flexDirection="column" marginLeft={2}>
+    <Box flexDirection="column" marginLeft={2} marginTop={1}>
       {factors.map((factor) => {
         const score = result.averageScores[factor] ?? 0;
-        const level = score >= 38 ? "High" : score >= 22 ? "Average" : "Low";
+        const level = bigFiveLevel(score);
+        const pct = Math.round(((score - 10) / 40) * 100);
+        const barWidth = 25;
+        const filled = Math.round((pct / 100) * barWidth);
+        const bar = rep("━", filled);
+        const empty = rep("─", barWidth - filled);
         return (
           <Box key={factor}>
             <Box width={22}>
               <Text>{factor}</Text>
             </Box>
-            <ScoreBar value={score} max={50} />
-            <Text> {score.toFixed(1)}/50 ({level})</Text>
+            <Text dimColor>{"["}</Text>
+            <Text color={levelColor(level)}>{bar}</Text>
+            <Text dimColor>{empty}{"]"}</Text>
+            <Text> {score.toFixed(1)}</Text>
+            <Text dimColor>/50 </Text>
+            <Text bold color={levelColor(level)}>{level}</Text>
           </Box>
         );
       })}
@@ -54,44 +69,83 @@ function EnneagramReport({ result }: { result: EvaluationResult }) {
   const sorted = Object.entries(result.averageScores).sort(
     ([, a], [, b]) => b - a,
   );
+  const topScore = sorted[0]?.[1] ?? 1;
+
   return (
-    <Box flexDirection="column" marginLeft={2}>
-      {sorted.map(([type, score], i) => (
-        <Box key={type}>
-          <Box width={32}>
-            <Text bold={i === 0} color={i === 0 ? "green" : undefined}>
-              {type}
+    <Box flexDirection="column" marginLeft={2} marginTop={1}>
+      {sorted.map(([type, score], i) => {
+        const isTop = i === 0;
+        const barWidth = 15;
+        const filled = Math.round((score / topScore) * barWidth);
+        const bar = rep("━", filled);
+        const empty = rep("─", barWidth - filled);
+        const shortType = type.replace(/ - .*/, "");
+        const typeName = type.replace(/Type \d - /, "");
+        return (
+          <Box key={type}>
+            <Box width={8}>
+              <Text bold={isTop} color={isTop ? "green" : undefined}>
+                {shortType}
+              </Text>
+            </Box>
+            <Text dimColor>{"["}</Text>
+            <Text color={isTop ? "green" : "white"}>{bar}</Text>
+            <Text dimColor>{empty}{"]"}</Text>
+            <Text bold={isTop}> {score.toFixed(1)}</Text>
+            <Text dimColor>/20 </Text>
+            <Text dimColor={!isTop} color={isTop ? "green" : undefined}>
+              {typeName}
             </Text>
           </Box>
-          <ScoreBar value={score} max={20} width={10} />
-          <Text bold={i === 0}> {score.toFixed(1)}/20</Text>
-        </Box>
-      ))}
+        );
+      })}
     </Box>
   );
 }
 
 function MBTIReport({ result }: { result: EvaluationResult }) {
   const dimensions = [
-    { key: "Introversion-Extraversion", labels: ["I", "E"], center: 24 },
-    { key: "Sensing-Intuition", labels: ["S", "N"], center: 24 },
-    { key: "Feeling-Thinking", labels: ["F", "T"], center: 24 },
-    { key: "Judging-Perceiving", labels: ["J", "P"], center: 24 },
+    { key: "Introversion-Extraversion", labels: ["I", "E"] as const, center: 24 },
+    { key: "Sensing-Intuition", labels: ["S", "N"] as const, center: 24 },
+    { key: "Feeling-Thinking", labels: ["F", "T"] as const, center: 24 },
+    { key: "Judging-Perceiving", labels: ["J", "P"] as const, center: 24 },
   ];
+  const barHalf = 12;
+
   return (
-    <Box flexDirection="column" marginLeft={2}>
+    <Box flexDirection="column" marginLeft={2} marginTop={1}>
       {dimensions.map((dim) => {
         const score = result.averageScores[dim.key] ?? 0;
         const letter = score > dim.center ? dim.labels[1] : dim.labels[0];
+        const normalized = (score - dim.center) / (48 - dim.center);
+        const clamped = Math.max(-1, Math.min(1, normalized));
+
+        const leftFilled = clamped < 0 ? Math.round(Math.abs(clamped) * barHalf) : 0;
+        const rightFilled = clamped > 0 ? Math.round(clamped * barHalf) : 0;
+
+        const leftEmpty = rep("─", barHalf - leftFilled);
+        const leftFill = rep("━", leftFilled);
+        const rightFill = rep("━", rightFilled);
+        const rightEmpty = rep("─", barHalf - rightFilled);
+
+        const leftColor = clamped < 0 ? "cyan" : undefined;
+        const rightColor = clamped > 0 ? "cyan" : undefined;
+
         return (
           <Box key={dim.key}>
-            <Box width={28}>
-              <Text>{dim.key}</Text>
+            <Box width={3}>
+              <Text bold={clamped < 0} color={leftColor}>{dim.labels[0]}</Text>
             </Box>
-            <Text>
-              {dim.labels[0]} <ScoreBar value={score} max={48} /> {dim.labels[1]}
-            </Text>
-            <Text bold> [{letter}] ({score.toFixed(1)})</Text>
+            <Text dimColor>{leftEmpty}</Text>
+            <Text color="cyan">{leftFill}</Text>
+            <Text dimColor>│</Text>
+            <Text color="cyan">{rightFill}</Text>
+            <Text dimColor>{rightEmpty}</Text>
+            <Box width={3}>
+              <Text bold={clamped > 0} color={rightColor}> {dim.labels[1]}</Text>
+            </Box>
+            <Text bold color="cyan"> [{letter}]</Text>
+            <Text dimColor> {score.toFixed(1)}</Text>
           </Box>
         );
       })}

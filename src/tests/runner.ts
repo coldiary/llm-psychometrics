@@ -273,6 +273,19 @@ export async function runAllEvaluations(
                 rounds,
                 onProgress,
               );
+            } catch {
+              // Return an empty result so the CLI never crashes
+              return {
+                modelId: model.id,
+                modelName: model.name,
+                testId,
+                rounds: [],
+                averageScores: {},
+                classification: "Error",
+                contradictions: [],
+                confidence: null,
+                totalCost: 0,
+              } satisfies EvaluationResult;
             } finally {
               testSemaphore.release();
             }
